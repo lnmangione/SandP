@@ -1,4 +1,5 @@
 import pandas as pd
+import datetime
 
 
 def get_df_daily():
@@ -23,7 +24,7 @@ def get_df_daily():
 def daily_close_stats(df):
     df_red = df.loc[df['Close'] < df['Open']]
     df_green = df.loc[df['Close'] > df['Open']]
-    df_neutral = df.loc[df_daily['Close'] == df['Open']]
+    df_neutral = df.loc[df['Close'] == df['Open']]
 
     print(f'Total days: {len(df)}')
     print(f'Days closing in red: {len(df_red)}, green: {len(df_green)}, unchanged: {len(df_neutral)}')
@@ -52,24 +53,41 @@ print(f'{price_increase_mean}% average price increase in this state')
 
 
 
+# load dataset, select cols, reorder, reset index, reformat types
+def get_df_5min():
+    df_5min = pd.read_csv("SP_5min_2005-2020.csv")
+    df_5min = df_5min.drop(['IncVol', 'Volume', 'Open', 'Close', 'High'], axis=1)
+    df_5min = df_5min.iloc[::-1]
+    df_5min = df_5min.reset_index(drop=True)
+    df_5min['Date'] = pd.to_datetime(df_5min['Date'], infer_datetime_format=True)
+    df_5min['Time'] = pd.to_datetime(df_5min['Time'], infer_datetime_format=True)
+    df_5min['Time'] = df_5min['Time'].dt.time
+    return df_5min
 
 
 
+df_5min = get_df_5min()
 
-# df_5min = pd.read_csv("SP_5min_2005-2020.csv")
-# print(df_5min.head(10))
-# df_5min = df_5min.iloc[::-1]
-# print(df_5min.head(10))
-# df_5min['Date'] = pd.to_datetime(df_5min['Date'], infer_datetime_format=True)
-# df_5min['Time'] = pd.to_datetime(df_5min['Time'], infer_datetime_format=True)
+# filter by regular working hours
+df_5min_regular = df_5min.loc[df_5min['Time'] >= datetime.time(9, 30)]
+df_5min_regular = df_5min_regular.loc[datetime.time(16, 0) >= df_5min_regular['Time']]
+
+
+
+# then group by date, join/filter by daily_rising dates, find min times, print metrics (median, mean) write to csv for tables / graph
+
+
+# print(len(df_5min_regular))
+# print(df_5min_regular.head(10))
 #
-# print(df_5min.head(10))
-#
-# # df_5min_working = df_5min.loc[df_5min['Time'] > ]
-#
-# grouped = df_5min.groupby("Date")
-#
+# grouped = df_5min_regular.groupby('Date')
 # print(len(grouped))
+# print(grouped.head(10))
+
+
+# print(grouped['Low'].min().head(20))
+
+
 #
 # # print(df_5min.head(10))
 # #
