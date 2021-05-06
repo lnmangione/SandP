@@ -2,7 +2,7 @@ import pandas as pd
 import datetime
 
 
-def get_df_daily():
+def load_df_daily():
     # Load and format daily dataset
     df_daily = pd.read_csv("SP_Daily_1997-2020.csv")
     df_daily = df_daily.drop(['High', 'Low', 'Volume', 'OpenInt'], axis=1)
@@ -21,7 +21,7 @@ def get_df_daily():
     return df_daily
 
 
-def daily_close_stats(df):
+def get_daily_close_stats(df):
     df_red = df.loc[df['Close'] < df['Open']]
     df_green = df.loc[df['Close'] > df['Open']]
     df_neutral = df.loc[df['Close'] == df['Open']]
@@ -30,31 +30,8 @@ def daily_close_stats(df):
     print(f'Days closing in red: {len(df_red)}, green: {len(df_green)}, unchanged: {len(df_neutral)}')
 
 
-# ======================================================================================================================
-
-df_daily = get_df_daily()
-
-print('\n======= Part 1: Daily Close Stats =======')
-daily_close_stats(df_daily)
-
-
-print('\n======= Part 2: Strictly Rising (close > 10d > 40d) =======')
-
-df_rising = df_daily.loc[df_daily['Close'] > df_daily['10DayEMA']]
-df_rising = df_rising.loc[df_rising['10DayEMA'] > df_rising['40DayEMA']]
-
-rising_frequency = round(len(df_rising) / len(df_daily), 4)
-print(f'{rising_frequency * 100}% of time, close > 10d > 40d')
-
-price_increase_median = round(df_rising['PercentChange'].median(), 3)
-price_increase_mean = round(df_rising['PercentChange'].mean(), 3)
-print(f'{price_increase_median}% median price increase in this state')
-print(f'{price_increase_mean}% average price increase in this state')
-
-
-
 # load dataset, select cols, reorder, reset index, reformat types
-def get_df_5min():
+def load_df_5min():
     df_5min = pd.read_csv("SP_5min_2005-2020.csv")
     df_5min = df_5min.drop(['IncVol', 'Volume', 'Open', 'Close', 'High'], axis=1)
     df_5min = df_5min.iloc[::-1]
@@ -65,37 +42,74 @@ def get_df_5min():
     return df_5min
 
 
+'''
+df_5min_filtered (Date, Time, Low) of 5 minute data, with many rows per day -> 
+to dataframe of (Date, Time, Low) with one row per day, Time = time of day's low
+'''
+def get_low_times(df_5min_filtered):
+    # group by date, then find low time
+    indx = df_5min_filtered.groupby('Date')['Low'].idxmin()
+    return df_5min_regular.loc[indx]
 
-df_5min = get_df_5min()
+
+'''
+df_dataset: the entire daily dataset
+df_subset: a subset of the daily dataset
+
+Prints stats about subset (frequency, price increase mean/median)
+'''
+def print_daily_subset_stats(df_dataset, df_subset):
+    subset_frequency = round(len(df_subset) / len(df_dataset), 4)
+    print(f'{subset_frequency * 100}% of time, in this state')
+
+    price_increase_median = round(df_subset['PercentChange'].median(), 3)
+    price_increase_mean = round(df_subset['PercentChange'].mean(), 3)
+    print(f'{price_increase_median}% median price increase in this state')
+    print(f'{price_increase_mean}% mean price increase in this state')
+
+
+'''
+df_daily_filtered: data from daily dataframe, filtered on some condition (e.g.: close > 10d > 40d)
+df_5min_lows: data from 5 min dataframe, one row per day, showing time low was made
+
+Prints the mean / median time of low and writes data to csv
+'''
+def print_low_stats(df_daily_filtered, df_5min_lows, trading_period, csv_name):
+    df_merged_lows = pd.merge(df_daily_filtered, df_5min_lows, on='Date')
+
+    # Print metrics (median, mean)
+    low_times_only = df_merged_lows.sort_values(by='Time')['Time'].reset_index(drop=True)
+    median_time = low_times_only.iloc[len(df_merged_lows) // 2]
+    print(f'{median_time} is median low time of day during {trading_period}')
+
+    mean_hours = low_times_only.apply(lambda x: x.hour * 60 + x.minute).mean() / 60
+    mean_time = f'{int(mean_hours)}:{round((mean_hours % 1) * 60, 4)}'
+    print(f'{mean_time} is mean low time of day during {trading_period}')
+
+    # df_merged_low_times = pd.Series.to_frame(df_merged_lows.groupby('Time').count()['Date']).rename(columns={'Date': 'Count'})
+    df_merged_lows.to_csv(csv_name)
+
+
+# ======================================================================================================================
+
+
+df_daily = load_df_daily()
+
+print('\n======= Part 1: Daily Close Stats =======')
+get_daily_close_stats(df_daily)
+
+
+print('\n======= Part 2: Strictly Rising (close > 10d > 40d) =======')
+
+df_5min = load_df_5min()
 
 # filter by regular working hours
 df_5min_regular = df_5min.loc[df_5min['Time'] >= datetime.time(9, 30)]
 df_5min_regular = df_5min_regular.loc[datetime.time(16, 0) >= df_5min_regular['Time']]
+df_5min_regular_lows = get_low_times(df_5min_regular)
 
+df_rising = df_daily.loc[df_daily['Close'] > df_daily['10DayEMA']]
+df_rising = df_rising.loc[df_rising['10DayEMA'] > df_rising['40DayEMA']]
+print_daily_subset_stats(df_daily, df_rising)
 
-
-# then group by date, join/filter by daily_rising dates, find min times, print metrics (median, mean) write to csv for tables / graph
-
-
-# print(len(df_5min_regular))
-# print(df_5min_regular.head(10))
-#
-# grouped = df_5min_regular.groupby('Date')
-# print(len(grouped))
-# print(grouped.head(10))
-
-
-# print(grouped['Low'].min().head(20))
-
-
-#
-# # print(df_5min.head(10))
-# #
-# # print(df_5min.dtypes)
-#
-# print(grouped.head(20))
-# print(grouped.size())
-#
-# print(df_5min.head(10))
-
-
+print_low_stats(df_rising, df_5min_regular_lows, 'regular hours', 'df_rising_regular_with_lows')
