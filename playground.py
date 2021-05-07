@@ -49,7 +49,7 @@ to dataframe of (Date, Time, Low) with one row per day, Time = time of day's low
 def get_low_times(df_5min_filtered):
     # group by date, then find low time
     indx = df_5min_filtered.groupby('Date')['Low'].idxmin()
-    return df_5min_regular.loc[indx]
+    return df_5min_filtered.loc[indx]
 
 
 '''
@@ -87,6 +87,7 @@ def print_low_stats(df_daily_filtered, df_5min_lows, trading_period, csv_name):
     print(f'{mean_time} is mean low time of day during {trading_period}')
 
     # df_merged_low_times = pd.Series.to_frame(df_merged_lows.groupby('Time').count()['Date']).rename(columns={'Date': 'Count'})
+    # df_merged_low_times.to_csv('df_v_full_low_times.csv')
     df_merged_lows.to_csv(csv_name)
 
 
@@ -99,17 +100,32 @@ print('\n======= Part 1: Daily Close Stats =======')
 get_daily_close_stats(df_daily)
 
 
-print('\n======= Part 2: Strictly Rising (close > 10d > 40d) =======')
-
+# ======= Load 5 min data for parts 2 and 3 =======
 df_5min = load_df_5min()
 
 # filter by regular working hours
-df_5min_regular = df_5min.loc[df_5min['Time'] >= datetime.time(9, 30)]
-df_5min_regular = df_5min_regular.loc[datetime.time(16, 0) >= df_5min_regular['Time']]
+df_5min_regular = df_5min.loc[(df_5min['Time'] >= datetime.time(9, 30)) & (datetime.time(16, 0) >= df_5min['Time'])]
 df_5min_regular_lows = get_low_times(df_5min_regular)
 
-df_rising = df_daily.loc[df_daily['Close'] > df_daily['10DayEMA']]
-df_rising = df_rising.loc[df_rising['10DayEMA'] > df_rising['40DayEMA']]
+# filter by full hours, time < 9:30 means true trading day is yesterday
+df_5min_full = df_5min.loc[(df_5min['Time'] <= datetime.time(16, 0)) | (df_5min['Time'] > datetime.time(18, 0))]
+mask = df_5min_full['Time'] < datetime.time(9, 30)
+df_5min_full.loc[mask, 'Date'] = df_5min_full.loc[mask, 'Date'] - pd.DateOffset(1)
+df_5min_full_lows = get_low_times(df_5min_full)
+
+
+print('\n======= Part 2: Strictly Rising (close > 10d > 40d) =======')
+df_rising = df_daily.loc[(df_daily['Close'] > df_daily['10DayEMA']) & (df_daily['10DayEMA'] > df_daily['40DayEMA'])]
 print_daily_subset_stats(df_daily, df_rising)
 
-print_low_stats(df_rising, df_5min_regular_lows, 'regular hours', 'df_rising_regular_with_lows')
+print_low_stats(df_rising, df_5min_regular_lows, 'regular hours', 'rising_regular_with_lows.csv')
+print_low_stats(df_rising, df_5min_full_lows, 'full hours', 'rising_full_with_lows.csv')
+
+
+print('\n======= Part 3: V-shape (close > 10d, close > 40d, but 10d < 40d) =======')
+df_v = df_daily.loc[(df_daily['Close'] > df_daily['10DayEMA']) & (df_daily['Close'] > df_daily['10DayEMA']) &
+                    (df_daily['10DayEMA'] < df_daily['40DayEMA'])]
+print_daily_subset_stats(df_daily, df_v)
+
+print_low_stats(df_v, df_5min_regular_lows, 'regular hours', 'v_shape_regular_with_lows.csv')
+print_low_stats(df_v, df_5min_full_lows, 'full hours', 'v_shape_full_with_lows.csv')
