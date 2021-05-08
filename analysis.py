@@ -30,8 +30,8 @@ def get_daily_close_stats(df):
     print(f'Days closing in red: {len(df_red)}, green: {len(df_green)}, unchanged: {len(df_neutral)}')
 
 
-# load dataset, select cols, reorder, reset index, reformat types
 def load_df_5min():
+    # load dataset, select cols, reorder, reset index, reformat types
     df_5min = pd.read_csv("SP_5min_2005-2020.csv")
     df_5min = df_5min.drop(['IncVol', 'Volume', 'Open', 'Close', 'High'], axis=1)
     df_5min = df_5min.iloc[::-1]
@@ -114,7 +114,7 @@ df_5min_full.loc[mask, 'Date'] = df_5min_full.loc[mask, 'Date'] - pd.DateOffset(
 df_5min_full_lows = get_low_times(df_5min_full)
 
 
-print('\n======= Part 2: Strictly Rising (close > 10d > 40d) =======')
+print('\n======= Part 2: Rising State (close > 10d > 40d) =======')
 df_rising = df_daily.loc[(df_daily['Close'] > df_daily['10DayEMA']) & (df_daily['10DayEMA'] > df_daily['40DayEMA'])]
 print_daily_subset_stats(df_daily, df_rising)
 
@@ -122,7 +122,7 @@ print_low_stats(df_rising, df_5min_regular_lows, 'regular hours', 'rising_regula
 print_low_stats(df_rising, df_5min_full_lows, 'full hours', 'rising_full_with_lows.csv')
 
 
-print('\n======= Part 3: V-shape (close > 10d, close > 40d, but 10d < 40d) =======')
+print('\n======= Part 3: V-shape State (close > 10d, close > 40d, but 10d < 40d) =======')
 df_v = df_daily.loc[(df_daily['Close'] > df_daily['10DayEMA']) & (df_daily['Close'] > df_daily['10DayEMA']) &
                     (df_daily['10DayEMA'] < df_daily['40DayEMA'])]
 print_daily_subset_stats(df_daily, df_v)
